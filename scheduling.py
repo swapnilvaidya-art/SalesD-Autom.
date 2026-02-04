@@ -1,7 +1,7 @@
 """
 Automation:
 - Fetch data from Metabase query
-- Write results to Google Sheets
+- Write results to Google Sheets using Sheet ID (URL-based)
 """
 
 import os
@@ -17,7 +17,7 @@ from gspread_dataframe import set_with_dataframe
 def get_env_var(name: str) -> str:
     value = os.getenv(name)
     if not value:
-        raise ValueError(f"Missing required environment variable: {name}")
+        raise ValueError(f"❌ Missing required environment variable: {name}")
     return value
 
 
@@ -54,11 +54,21 @@ def connect_to_gsheet(service_account_json: str) -> gspread.Client:
     return gspread.authorize(creds)
 
 
-def update_sheet(gc: gspread.Client, spreadsheet_name: str, worksheet_name: str, df: pd.DataFrame) -> None:
-    sheet = gc.open(spreadsheet_name)
+def update_sheet(
+    gc: gspread.Client,
+    sheet_key: str,
+    worksheet_name: str,
+    df: pd.DataFrame,
+) -> None:
+    sheet = gc.open_by_key(sheet_key)
     worksheet = sheet.worksheet(worksheet_name)
     worksheet.clear()
-    set_with_dataframe(worksheet, df, include_index=False, include_column_header=True)
+    set_with_dataframe(
+        worksheet,
+        df,
+        include_index=False,
+        include_column_header=True,
+    )
 
 
 def main() -> None:
@@ -69,11 +79,16 @@ def main() -> None:
     password = get_env_var("PRABHAT_SECRET_KEY")
     query_url = get_env_var("Dummy_Automation_Query")
     service_account_json = get_env_var("SERVICE_ACCOUNT_JSON")
+    sheet_key = get_env_var("SHEET_ACCESS_KEY")
 
-    spreadsheet_name = "Dummy Automation Test"
     worksheet_name = "Test Taken"
 
-    headers = create_metabase_session(metabase_url, username, password)
+    headers = create_metabase_session(
+        metabase_url=metabase_url,
+        username=username,
+        password=password,
+    )
+
     df = fetch_metabase_query(query_url, headers)
 
     if df.empty:
@@ -81,10 +96,10 @@ def main() -> None:
         return
 
     gc = connect_to_gsheet(service_account_json)
-    update_sheet(gc, spreadsheet_name, worksheet_name, df)
+    update_sheet(gc, sheet_key, worksheet_name, df)
 
     elapsed = time.time() - start_time
-    print(f"✅ Automation completed in {elapsed:.2f}s")
+    print(f"✅ Automation completed successfully in {elapsed:.2f}s")
 
 
 if __name__ == "__main__":
